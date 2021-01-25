@@ -305,9 +305,10 @@ def validate_and_save(
 
     # Validate
     valid_losses = [None]
-
     if do_validate:
         valid_losses = validate(cfg, trainer, task, cur_step, epoch_itr, valid_subsets)
+    if len(valid_losses) == 0:
+        return valid_losses, False
 
     # Stopping conditions
     should_stop = (
@@ -383,17 +384,22 @@ def validate(
         # create a new root metrics aggregator so validation metrics
         # don't pollute other aggregators (e.g., train meters)
         with metrics.aggregate(new_root=True) as agg:
-            for sample in progress:
+            for i, sample in enumerate(progress):
                 # import pdb
                 # pdb.set_trace()
                 sample['cur_step'] = cur_step
-                trainer.valid_step(sample)
-
+                logging_output = trainer.valid_step(sample)
+                progress.log(logging_output, tag="valid", step=i)
+        # import pdb
+        # pdb.set_trace()
         # log validation stats
         stats = get_valid_stats(cfg, trainer, agg.get_smoothed_values())
         progress.print(stats, tag=subset, step=trainer.get_num_updates())
+        if cfg.checkpoint.best_checkpoint_metric in stats:
+            valid_losses.append(stats[cfg.checkpoint.best_checkpoint_metric])
+        else:
+            print("In fairseq/fairseq_cli/train.py line 400:\n{} not in stats".format(cfg.checkpoint.best_checkpoint_metric))
 
-        valid_losses.append(stats[cfg.checkpoint.best_checkpoint_metric])
     return valid_losses
 
 
