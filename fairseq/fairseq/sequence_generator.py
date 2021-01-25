@@ -62,6 +62,7 @@ class SequenceGenerator(nn.Module):
             self.model = models
         else:
             self.model = EnsembleModel(models)
+
         self.tgt_dict = tgt_dict
         self.pad = tgt_dict.pad()
         self.unk = tgt_dict.unk()
@@ -124,6 +125,8 @@ class SequenceGenerator(nn.Module):
             bos_token (int, optional): beginning of sentence token
                 (default: self.eos)
         """
+        # import pdb
+        # pdb.set_trace()
         return self._generate(sample, prefix_tokens, bos_token=bos_token)
 
     # TODO(myleott): unused, deprecate after pytorch-translate migration
@@ -182,6 +185,7 @@ class SequenceGenerator(nn.Module):
         constraints: Optional[Tensor] = None,
         bos_token: Optional[int] = None,
     ):
+
         # 在这里做生成
         incremental_states = torch.jit.annotate(
             List[Dict[str, Dict[str, Optional[Tensor]]]],
@@ -256,6 +260,7 @@ class SequenceGenerator(nn.Module):
             .long()
             .fill_(self.pad)
         )  # +2 for eos and pad
+
         tokens[:, 0] = self.eos if bos_token is None else bos_token
         attn: Optional[Tensor] = None
 
@@ -266,7 +271,6 @@ class SequenceGenerator(nn.Module):
         cands_to_ignore = (
             torch.zeros(bsz, beam_size).to(src_tokens).eq(-1)
         )  # forward and backward-compatible False mask
-
         # list of completed sentences
         finalized = torch.jit.annotate(
             List[List[Dict[str, Tensor]]],
@@ -296,6 +300,7 @@ class SequenceGenerator(nn.Module):
 
         for step in range(max_len + 1):  # one extra step for EOS marker
             # reorder decoder internal states based on the prev choice of beams
+
             if reorder_state is not None:
                 if batch_idxs is not None:
                     # update beam indices to take into account removed sentences
@@ -337,6 +342,7 @@ class SequenceGenerator(nn.Module):
                 lprobs[:, self.eos + 1 :] = -math.inf
 
             # handle prefix tokens (possibly with different lengths)
+            # 如果输入的prefix_tokens不为空，则decode出的所有结果必须以该token为开始
             if (
                 prefix_tokens is not None
                 and step < prefix_tokens.size(1)
@@ -402,7 +408,6 @@ class SequenceGenerator(nn.Module):
                 eos_scores = torch.masked_select(
                     cand_scores[:, :beam_size], mask=eos_mask[:, :beam_size]
                 )
-
                 finalized_sents = self.finalize_hypos(
                     step,
                     eos_bbsz_idx,
@@ -532,6 +537,7 @@ class SequenceGenerator(nn.Module):
             reorder_state = active_bbsz_idx
 
         # sort by score descending
+
         for sent in range(len(finalized)):
             scores = torch.tensor(
                 [float(elem["score"].item()) for elem in finalized[sent]]
@@ -821,6 +827,8 @@ class EnsembleModel(nn.Module):
         for i, model in enumerate(self.models):
             if self.has_encoder():
                 encoder_out = encoder_outs[i]
+            # import pdb
+            # pdb.set_trace()
             # decode each model
             if self.has_incremental_states():
                 decoder_out = model.decoder.forward(

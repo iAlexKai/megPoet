@@ -472,8 +472,8 @@ class Trainer(object):
         logger.info("begin training epoch {}".format(epoch))
 
         self.lr_step_begin_epoch(epoch)
-        import pdb
-        pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
         if self.quantizer is not None:
             self.quantizer.begin_epoch(epoch)
 

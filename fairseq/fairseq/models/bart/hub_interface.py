@@ -107,10 +107,13 @@ class BARTHubInterface(GeneratorHubInterface):
         if "prefix_tokens" in inference_step_args:
             raise NotImplementedError("prefix generation not implemented for BART")
         else:
-            bsz = len(tokenized_sentences)
-            inference_step_args["prefix_tokens"] = tokenized_sentences[0].new_full(
-                (bsz, 1), fill_value=self.task.source_dictionary.bos()
-            ).to(device=self.device)
+            pass
+            # import pdb
+            # pdb.set_trace()
+            # bsz = len(tokenized_sentences)
+            # inference_step_args["prefix_tokens"] = tokenized_sentences[0].new_full(
+            #     (bsz, 1), fill_value=self.task.source_dictionary.bos()
+            # ).to(device=self.device)
         return super().generate(
             tokenized_sentences,
             *args,

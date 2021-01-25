@@ -82,8 +82,7 @@ class BARTModel(TransformerModel):
         alignment_layer: Optional[int] = None,
         alignment_heads: Optional[int] = None,
     ):
-        import pdb
-        pdb.set_trace()
+
         if classification_head_name is not None:
             features_only = True
         encoder_out = self.encoder(
@@ -92,7 +91,8 @@ class BARTModel(TransformerModel):
             token_embeddings=token_embeddings,
             return_all_hiddens=return_all_hiddens
         )
-
+        import pdb
+        pdb.set_trace()
         x, extra = self.decoder(
             prev_output_tokens,
             encoder_out=encoder_out,

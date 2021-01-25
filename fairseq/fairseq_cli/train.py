@@ -420,7 +420,4 @@ def cli_main(
 
 
 if __name__ == "__main__":
-    import pdb
-    pdb.set_trace()
-
     cli_main()
