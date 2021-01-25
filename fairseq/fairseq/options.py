@@ -359,5 +359,7 @@ def add_model_args(parser):
     group.add_argument('--arch', '-a', metavar='ARCH',
                        choices=ARCH_MODEL_REGISTRY.keys(),
                        help='model architecture')
+    group.add_argument('--z-size', default=64, type=int, help='latent hidden size for cvae')
+    group.add_argument('--init-w', default=0.02, type=float, help='init weight for the Variation')
     # fmt: on
     return group

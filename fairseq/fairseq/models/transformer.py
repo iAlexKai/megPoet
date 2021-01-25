@@ -193,7 +193,7 @@ class TransformerModel(FairseqEncoderDecoderModel):
     @classmethod
     def build_model(cls, args, task):
         """Build a new model instance."""
-
+        # 在组成trainer前，首先build model：在translation任务，build model，找到对应的bard_base模型，最后来到这里
         # make sure all arguments are present in older models
         base_architecture(args)
 
@@ -208,7 +208,8 @@ class TransformerModel(FairseqEncoderDecoderModel):
             args.max_target_positions = DEFAULT_MAX_TARGET_POSITIONS
 
         src_dict, tgt_dict = task.source_dictionary, task.target_dictionary
-
+        assert len(src_dict) == len(tgt_dict)
+        args.vocab_size = len(src_dict)
         if args.share_all_embeddings:
             if src_dict != tgt_dict:
                 raise ValueError("--share-all-embeddings requires a joined dictionary")
@@ -235,8 +236,11 @@ class TransformerModel(FairseqEncoderDecoderModel):
                 args, tgt_dict, args.decoder_embed_dim, args.decoder_embed_path
             )
 
+        # cls相当于实例化当前（self）一个对象
+        # 实例化后调用build_encoder方法得到一个encoder对象和一个decoder对象
         encoder = cls.build_encoder(args, src_dict, encoder_embed_tokens)
         decoder = cls.build_decoder(args, tgt_dict, decoder_embed_tokens)
+
         return cls(args, encoder, decoder)
 
     @classmethod
@@ -999,6 +1003,12 @@ def base_architecture(args):
     args.quant_noise_pq = getattr(args, "quant_noise_pq", 0)
     args.quant_noise_pq_block_size = getattr(args, "quant_noise_pq_block_size", 8)
     args.quant_noise_scalar = getattr(args, "quant_noise_scalar", 0)
+
+    # args for cvae
+    # import pdb
+    # pdb.set_trace()
+    args.z_size = getattr(args, "z_size", 64)
+    args.init_w = getattr(args, "init_w", 0.02)
 
 
 @register_model_architecture("transformer", "transformer_iwslt_de_en")

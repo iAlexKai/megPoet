@@ -92,7 +92,8 @@ def build_model(cfg: FairseqDataclass, task):
         + " Requested model type: "
         + model_type
     )
-
+    # import pdb
+    # pdb.set_trace()
     return model.build_model(cfg, task)
 
 

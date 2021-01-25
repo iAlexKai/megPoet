@@ -324,7 +324,9 @@ class TranslationTask(LegacyFairseqTask):
         )
 
     def build_model(self, args):
+
         model = super().build_model(args)
+
         if getattr(args, "eval_bleu", False):
             assert getattr(args, "eval_bleu_detok", None) is not None, (
                 "--eval-bleu-detok is required if using --eval-bleu; "

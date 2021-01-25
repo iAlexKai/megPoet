@@ -495,15 +495,23 @@ class Trainer(object):
     def reset_dummy_batch(self, batch):
         self._dummy_batch = batch
 
+    def to_ordered_dict(self, logging_outputs):
+        from collections import OrderedDict
+        logging_output = OrderedDict()
+        logging_output['loss'] = round(logging_outputs[0]['loss'].item(), 3)
+        logging_output['nll_loss'] = round(logging_outputs[0]['nll_loss'].item(), 3)
+        logging_output['kl_loss'] = round(logging_outputs[0]['kl_loss'].item(), 3)
+        logging_output['kld'] = round(logging_outputs[0]['kld'].item(), 3)
+        logging_output['bow_loss'] = round(logging_outputs[0]['bow_loss'].item(), 3)
+        return logging_output
+
     @metrics.aggregate("train")
-    def train_step(self, samples, raise_oom=False):
+    def train_step(self, samples, cur_step, raise_oom=False):
         """Do forward, backward and parameter update."""
         self._set_seed()
         self.model.train()
         self.criterion.train()
         self.zero_grad()
-        # import pdb
-        # pdb.set_trace()
         metrics.log_start_time("train_wall", priority=800, round=0)
 
         # forward and backward pass
@@ -529,6 +537,8 @@ class Trainer(object):
             try:
                 with maybe_no_sync():
                     # forward and backward
+                    # import pdb
+                    # pdb.set_trace()
                     loss, sample_size_i, logging_output = self.task.train_step(
                         sample=sample,
                         model=self.model,
@@ -536,6 +546,7 @@ class Trainer(object):
                         optimizer=self.optimizer,
                         update_num=self.get_num_updates(),
                         ignore_grad=is_dummy_batch,
+                        cur_step=cur_step
                     )
                     del loss
 
@@ -729,11 +740,12 @@ class Trainer(object):
                 self._check_xla_compilation()
             else:
                 # log stats
-                logging_output = self._reduce_and_log_stats(
-                    logging_outputs,
-                    sample_size,
-                    grad_norm,
-                )
+                # logging_output = self._reduce_and_log_stats(
+                #     logging_outputs,
+                #     sample_size,
+                #     grad_norm,
+                # )
+                logging_output = self.to_ordered_dict(logging_outputs)
 
                 # clear CUDA cache to reduce memory fragmentation
                 if (
@@ -767,7 +779,6 @@ class Trainer(object):
 
             xm.rendezvous("valid_step")  # wait for all workers
             xm.mark_step()
-
         with torch.no_grad():
             self.model.eval()
             self.criterion.eval()
@@ -809,7 +820,8 @@ class Trainer(object):
             )
 
         # log validation stats
-        logging_output = self._reduce_and_log_stats(logging_outputs, sample_size)
+        # logging_output = self._reduce_and_log_stats(logging_outputs, sample_size)
+        logging_output = self.to_ordered_dict(logging_outputs)
 
         return logging_output
 

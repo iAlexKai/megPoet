@@ -71,6 +71,7 @@ def main(cfg: DictConfig) -> None:
     assert cfg.criterion, "Please specify criterion to train a model"
 
     # Build model and criterion
+    # 把task model criterion根据配置信息全部生产好，组装成一个trainer对象
     model = task.build_model(cfg.model)
     criterion = task.build_criterion(cfg.criterion)
     logger.info(model)
@@ -229,18 +230,22 @@ def train(
     valid_subsets = cfg.dataset.valid_subset.split(",")
     should_stop = False
     num_updates = trainer.get_num_updates()
+    cur_step_min = len(epoch_itr.batch_sampler) * (epoch_itr.epoch-1)
     for i, samples in enumerate(progress):
+        # print(i)
         with metrics.aggregate("train_inner"), torch.autograd.profiler.record_function(
             "train_step-%d" % i
         ):
-            # import pdb
-            # pdb.set_trace()
-            log_output = trainer.train_step(samples)
+
+            log_output = trainer.train_step(samples, cur_step=cur_step_min+i)
 
         if log_output is not None:  # not OOM, overflow, ...
             # log mid-epoch stats
+            progress.log(log_output, tag="train", step=num_updates)
             num_updates = trainer.get_num_updates()
             if num_updates % cfg.common.log_interval == 0:
+                # import pdb
+                # pdb.set_trace()
                 stats = get_training_stats(metrics.get_smoothed_values("train_inner"))
                 progress.log(stats, tag="train_inner", step=num_updates)
 
@@ -250,7 +255,7 @@ def train(
 
         end_of_epoch = not itr.has_next()
         valid_losses, should_stop = validate_and_save(
-            cfg, trainer, task, epoch_itr, valid_subsets, end_of_epoch
+            cfg, trainer, task, cur_step_min+i, epoch_itr, valid_subsets, end_of_epoch
         )
 
         if should_stop:
@@ -270,6 +275,7 @@ def validate_and_save(
     cfg: DictConfig,
     trainer: Trainer,
     task: tasks.FairseqTask,
+    cur_step,
     epoch_itr,
     valid_subsets: List[str],
     end_of_epoch: bool,
@@ -299,8 +305,9 @@ def validate_and_save(
 
     # Validate
     valid_losses = [None]
+
     if do_validate:
-        valid_losses = validate(cfg, trainer, task, epoch_itr, valid_subsets)
+        valid_losses = validate(cfg, trainer, task, cur_step, epoch_itr, valid_subsets)
 
     # Stopping conditions
     should_stop = (
@@ -332,6 +339,7 @@ def validate(
     cfg: DictConfig,
     trainer: Trainer,
     task: tasks.FairseqTask,
+    cur_step,
     epoch_itr,
     subsets: List[str],
 ) -> List[Optional[float]]:
@@ -376,6 +384,9 @@ def validate(
         # don't pollute other aggregators (e.g., train meters)
         with metrics.aggregate(new_root=True) as agg:
             for sample in progress:
+                # import pdb
+                # pdb.set_trace()
+                sample['cur_step'] = cur_step
                 trainer.valid_step(sample)
 
         # log validation stats

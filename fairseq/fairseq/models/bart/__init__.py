@@ -4,4 +4,4 @@
 # LICENSE file in the root directory of this source tree.
 
 from .hub_interface import *  # noqa
-from .model import *  # noqa
+from .bart_model import *  # noqa

@@ -22,6 +22,55 @@ from .hub_interface import BARTHubInterface
 
 logger = logging.getLogger(__name__)
 
+
+def gaussian_kld(recog_mu, recog_logvar, prior_mu, prior_logvar):
+    kld = -0.5 * torch.sum(1 + (recog_logvar - prior_logvar)
+                               - torch.div(torch.pow(prior_mu - recog_mu, 2), torch.exp(prior_logvar))
+                               - torch.div(torch.exp(recog_logvar), torch.exp(prior_logvar)), 1)
+    return kld
+
+
+class Variation(nn.Module):
+    def __init__(self, input_size, z_size, dropout_rate, init_weight):
+        super(Variation, self).__init__()
+        self.input_size = input_size
+        self.z_size = z_size
+        self.init_w = init_weight
+        self.fc = nn.Sequential(
+            nn.Linear(input_size, 1200),
+            nn.BatchNorm1d(1200, eps=1e-05, momentum=0.1),
+            nn.LeakyReLU(0.1),
+            nn.Dropout(dropout_rate),
+            nn.Linear(1200, z_size),
+            nn.BatchNorm1d(z_size, eps=1e-05, momentum=0.1),
+            nn.LeakyReLU(0.1),
+            # nn.Dropout(dropout_rate),
+        )
+        self.context_to_mu = nn.Linear(z_size, z_size)  # activation???
+        self.context_to_logsigma = nn.Linear(z_size, z_size)
+
+        self.fc.apply(self.init_weights)
+        self.init_weights(self.context_to_mu)
+        self.init_weights(self.context_to_logsigma)
+
+    def init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            m.weight.data.uniform_(-self.init_w, self.init_w)
+            # nn.init.kaiming_normal_(m.weight.data)
+            # nn.init.kaiming_uniform_(m.weight.data)
+            m.bias.data.fill_(0)
+
+    def forward(self, context):
+        batch_size, _ = context.size()  # prior: (batch, 4 * hidden)
+        context = self.fc(context)
+        mu = self.context_to_mu(context)
+        logsigma = self.context_to_logsigma(context)
+        std = torch.exp(0.5 * logsigma)
+
+        epsilon = torch.randn([batch_size, self.z_size]).cuda()
+        z = (epsilon * std + mu).half()
+        return z, mu, logsigma
+
 @register_model("bart")
 class BARTModel(TransformerModel):
     __jit_unused_properties__ = ["supported_targets"]
@@ -43,6 +92,15 @@ class BARTModel(TransformerModel):
         self.apply(init_bert_params)
 
         self.classification_heads = nn.ModuleDict()
+        self.sample_code_prior = Variation(input_size=args.encoder_embed_dim, z_size=args.z_size, dropout_rate=args.dropout, init_weight=args.init_w)
+        self.sample_code_post = Variation(input_size=args.encoder_embed_dim*2, z_size=args.z_size, dropout_rate=args.dropout, init_weight=args.init_w)
+        self.bow_project = nn.Sequential(
+            nn.Linear(args.encoder_embed_dim*2, 400),
+            nn.LeakyReLU(),
+            nn.Dropout(args.dropout),
+            nn.Linear(400, args.vocab_size)
+        )
+        self.init_decoder = nn.Linear(args.encoder_embed_dim + args.z_size, args.encoder_embed_dim)
         if hasattr(self.encoder, "dictionary"):
             self.eos: int = self.encoder.dictionary.eos()
 
@@ -82,7 +140,9 @@ class BARTModel(TransformerModel):
         alignment_layer: Optional[int] = None,
         alignment_heads: Optional[int] = None,
     ):
-
+        cvae_outputs = []
+        batch_size = src_tokens.size()[0]
+        output_lengths = (torch.ones([batch_size], dtype=torch.int64) * (prev_output_tokens.size()[1])).cuda()
         if classification_head_name is not None:
             features_only = True
         encoder_out = self.encoder(
@@ -91,8 +151,35 @@ class BARTModel(TransformerModel):
             token_embeddings=token_embeddings,
             return_all_hiddens=return_all_hiddens
         )
-        import pdb
-        pdb.set_trace()
+
+        target_out = self.encoder(
+            prev_output_tokens,
+            src_lengths=output_lengths,
+            token_embeddings=token_embeddings,
+            return_all_hiddens=return_all_hiddens
+        )
+        condition_prior = encoder_out['encoder_out'][0][-1]
+        condition_post = torch.cat([condition_prior, target_out['encoder_out'][0][-1]], dim=1)
+
+        z_prior, prior_mu, prior_logvar = self.sample_code_prior(condition_prior)
+        z_post, post_mu, post_logvar = self.sample_code_post(condition_post)
+        bow_logits = self.bow_project(condition_post)
+
+        kld = gaussian_kld(post_mu, post_logvar, prior_mu, prior_logvar)
+
+        bow_labels = prev_output_tokens[:, 1:]
+        bow_label_mask = torch.sign(bow_labels).detach().float()
+        cvae_outputs.append(kld)
+        cvae_outputs.append(bow_logits)
+        cvae_outputs.append(bow_labels)
+        cvae_outputs.append(bow_label_mask)
+
+        final_info = torch.cat([z_post, condition_prior], dim=1)
+        seq_len = encoder_out['encoder_out'][0].size(0)
+        encoder_embed_dim = encoder_out['encoder_out'][0].size(-1)
+        decoder_input = self.init_decoder(final_info).unsqueeze(0).expand(seq_len, batch_size, encoder_embed_dim)
+
+        encoder_out['encoder_out'][0] = encoder_out['encoder_out'][0] + decoder_input
         x, extra = self.decoder(
             prev_output_tokens,
             encoder_out=encoder_out,
@@ -112,7 +199,8 @@ class BARTModel(TransformerModel):
                 if k == classification_head_name:
                     x = head(sentence_representation)
                     break
-        return x, extra
+
+        return x, extra, cvae_outputs
 
     @classmethod
     def from_pretrained(

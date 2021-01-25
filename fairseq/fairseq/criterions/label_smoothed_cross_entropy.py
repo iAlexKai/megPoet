@@ -6,6 +6,7 @@
 import math
 
 import torch
+import torch.nn.functional as F
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 
@@ -68,16 +69,19 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
         """
 
         # 从这里进入model，并拿到model forward后的输出
-
         net_output = model(**sample["net_input"])
 
-        loss, nll_loss = self.compute_loss(model, net_output, sample, reduce=reduce)
+        loss, nll_loss, kl_loss, kld, bow_loss = self.compute_loss(model, net_output, sample, reduce=reduce)
         sample_size = (
             sample["target"].size(0) if self.sentence_avg else sample["ntokens"]
         )
+
         logging_output = {
             "loss": loss.data,
             "nll_loss": nll_loss.data,
+            "kl_loss": kl_loss.data,
+            "kld": kld.data,
+            "bow_loss": bow_loss.data,
             "ntokens": sample["ntokens"],
             "nsentences": sample["target"].size(0),
             "sample_size": sample_size,
@@ -100,7 +104,25 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
                 target = target[self.ignore_prefix_size :, :].contiguous()
         return lprobs.view(-1, lprobs.size(-1)), target.view(-1)
 
+    def get_cvae_loss(self, cvae_outputs, cur_step):
+        kld, bow_logits, bow_labels, bow_label_mask = cvae_outputs
+        # import pdb
+        # pdb.set_trace()
+        avg_kld = torch.mean(kld)
+        kl_weight = min(cur_step / 100000, 1.0)
+
+        kl_loss = kl_weight * avg_kld
+
+        bow_loss = -F.log_softmax(bow_logits, dim=1).gather(1, bow_labels) * bow_label_mask
+        sum_bow_loss = torch.sum(bow_loss, 1)
+        avg_bow_loss = torch.mean(sum_bow_loss)
+
+        return kl_loss, avg_kld, avg_bow_loss
+
     def compute_loss(self, model, net_output, sample, reduce=True):
+        x, extra, cvae_outputs = net_output
+        net_output = (x, extra)
+        cur_step = sample['cur_step']
         lprobs, target = self.get_lprobs_and_target(model, net_output, sample)
         loss, nll_loss = label_smoothed_nll_loss(
             lprobs,
@@ -109,7 +131,14 @@ class LabelSmoothedCrossEntropyCriterion(FairseqCriterion):
             ignore_index=self.padding_idx,
             reduce=reduce,
         )
-        return loss, nll_loss
+
+        kl_loss, kld, bow_loss = self.get_cvae_loss(cvae_outputs, cur_step=cur_step)
+        # import pdb
+        # pdb.set_trace()
+        loss /= 100
+        nll_loss /= 100
+        loss = loss + kl_loss + bow_loss
+        return loss, nll_loss, kl_loss, kld, bow_loss
 
     def compute_accuracy(self, model, net_output, sample):
         lprobs, target = self.get_lprobs_and_target(model, net_output, sample)
