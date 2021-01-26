@@ -141,8 +141,10 @@ def main(cfg: DictConfig) -> None:
             break
 
         # only use first validation loss to update the learning rate
-        lr = trainer.lr_step(epoch_itr.epoch, valid_losses[0])
-
+        if len(valid_losses) != 0:
+            lr = trainer.lr_step(epoch_itr.epoch, valid_losses[0])
+        else:
+            print("valid_loss is None, stop updating lr")
         epoch_itr = trainer.get_train_iterator(
             epoch_itr.next_epoch_idx,
             # sharded data: get train iterator for next epoch
@@ -305,6 +307,7 @@ def validate_and_save(
 
     # Validate
     valid_losses = [None]
+    # do_validate = True
     if do_validate:
         valid_losses = validate(cfg, trainer, task, cur_step, epoch_itr, valid_subsets)
     if len(valid_losses) == 0:
@@ -407,6 +410,9 @@ def get_valid_stats(
     cfg: DictConfig, trainer: Trainer, stats: Dict[str, Any]
 ) -> Dict[str, Any]:
     stats["num_updates"] = trainer.get_num_updates()
+    import pdb
+    pdb.set_trace()
+    # print(checkpoint_utils.save_checkpoint)
     if hasattr(checkpoint_utils.save_checkpoint, "best"):
         key = "best_{0}".format(cfg.checkpoint.best_checkpoint_metric)
         best_function = max if cfg.checkpoint.maximize_best_checkpoint_metric else min

@@ -20,7 +20,7 @@ CUDA_VISIBLE_DEVICES=0 fairseq-train data-bin/$TASK \
     --tensorboard-logdir $tensorboard_path \
     --max-epoch $EPOCHS \
     --batch-size $BATCH_SIZE \
-    --save-interval 2 \
+    --save-interval 1 \
     --max-tokens $MAX_TOKENS \
     --task translation \
     --source-lang source --target-lang target \
