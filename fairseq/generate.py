@@ -1,10 +1,10 @@
 import torch
-from fairseq.models.bart.model import BARTModel
+from fairseq.models.bart.bart_model import BARTModel
 
 bpe_json = '../data_process/poet/resources/encoder.json'
 bart = BARTModel.from_pretrained(
     '../checkpoints/',
-    checkpoint_file='checkpoint_last.pt',
+    checkpoint_file='checkpoint_best.pt',
     data_name_or_path='../data-bin/poet',
 )
 

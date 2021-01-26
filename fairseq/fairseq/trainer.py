@@ -772,8 +772,9 @@ class Trainer(object):
         return logging_output
 
     @metrics.aggregate("valid")
-    def valid_step(self, sample, raise_oom=False):
+    def valid_step(self, sample, cur_step, raise_oom=False):
         """Do forward pass in evaluation mode."""
+        sample['cur_step'] = cur_step
         if self.tpu:
             import torch_xla.core.xla_model as xm
 
@@ -820,9 +821,10 @@ class Trainer(object):
             )
 
         # log validation stats
-        # logging_output = self._reduce_and_log_stats(logging_outputs, sample_size)
-        logging_output = self.to_ordered_dict(logging_outputs)
-
+        logging_output = self._reduce_and_log_stats(logging_outputs, sample_size)
+        # logging_output = self.to_ordered_dict(logging_outputs)
+        # import pdb
+        # pdb.set_trace()
         return logging_output
 
     def zero_grad(self):
@@ -1125,6 +1127,10 @@ class Trainer(object):
                 )
 
     def _reduce_and_log_stats(self, logging_outputs, sample_size, grad_norm=None):
+        metrics.log_scalar("kl_loss", round(logging_outputs[0]["kl_loss"].item(), 3))
+        metrics.log_scalar("kld", round(logging_outputs[0]["kld"].item(), 3))
+        metrics.log_scalar("bow_loss", round(logging_outputs[0]["bow_loss"].item(), 3))
+
         if grad_norm is not None and (
             not torch.is_tensor(grad_norm) or torch.isfinite(grad_norm)
         ):
@@ -1143,6 +1149,7 @@ class Trainer(object):
                 )
 
         with metrics.aggregate() as agg:
+
             if logging_outputs is not None:
                 self.task.reduce_metrics(logging_outputs, self.get_criterion())
                 del logging_outputs
@@ -1156,7 +1163,6 @@ class Trainer(object):
                         "which may break some functionality"
                     )
                 metrics.log_scalar("loss", -1)
-
             # support legacy interface
             if self.tpu:
                 logging_output = {}

@@ -310,8 +310,8 @@ def validate_and_save(
     # do_validate = True
     if do_validate:
         valid_losses = validate(cfg, trainer, task, cur_step, epoch_itr, valid_subsets)
-    if len(valid_losses) == 0:
-        return valid_losses, False
+    # if len(valid_losses) == 0:
+    #     return valid_losses, False
 
     # Stopping conditions
     should_stop = (
@@ -386,22 +386,18 @@ def validate(
 
         # create a new root metrics aggregator so validation metrics
         # don't pollute other aggregators (e.g., train meters)
+        # 需要通过metrics.log_scalar("key", val)添加到metrics里面，才能在agg中显示出来log
         with metrics.aggregate(new_root=True) as agg:
-            for i, sample in enumerate(progress):
-                # import pdb
-                # pdb.set_trace()
-                sample['cur_step'] = cur_step
-                logging_output = trainer.valid_step(sample)
-                progress.log(logging_output, tag="valid", step=i)
+            for sample in progress:
+                trainer.valid_step(sample, cur_step=cur_step)
         # import pdb
         # pdb.set_trace()
         # log validation stats
+        # stats里面已经有了agg.get_smoothed_values()这个orderedDict作为基础，通过get_valid_stats函数获得一些其他的state值
         stats = get_valid_stats(cfg, trainer, agg.get_smoothed_values())
         progress.print(stats, tag=subset, step=trainer.get_num_updates())
-        if cfg.checkpoint.best_checkpoint_metric in stats:
-            valid_losses.append(stats[cfg.checkpoint.best_checkpoint_metric])
-        else:
-            print("In fairseq/fairseq_cli/train.py line 400:\n{} not in stats".format(cfg.checkpoint.best_checkpoint_metric))
+        valid_losses.append(stats[cfg.checkpoint.best_checkpoint_metric])
+        # print("In fairseq/fairseq_cli/train.py line 400:\n{} not in stats".format(cfg.checkpoint.best_checkpoint_metric))
 
     return valid_losses
 
@@ -410,8 +406,8 @@ def get_valid_stats(
     cfg: DictConfig, trainer: Trainer, stats: Dict[str, Any]
 ) -> Dict[str, Any]:
     stats["num_updates"] = trainer.get_num_updates()
-    import pdb
-    pdb.set_trace()
+    # import pdb
+    # pdb.set_trace()
     # print(checkpoint_utils.save_checkpoint)
     if hasattr(checkpoint_utils.save_checkpoint, "best"):
         key = "best_{0}".format(cfg.checkpoint.best_checkpoint_metric)
