@@ -1,6 +1,6 @@
 #!/bin/bash
 
-TASK=bart/
+#TASK=bart/
 TASK=poet/
 
 fairseq-preprocess \

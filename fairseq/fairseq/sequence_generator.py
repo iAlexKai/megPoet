@@ -185,7 +185,6 @@ class SequenceGenerator(nn.Module):
         constraints: Optional[Tensor] = None,
         bos_token: Optional[int] = None,
     ):
-
         # 在这里做生成
         incremental_states = torch.jit.annotate(
             List[Dict[str, Dict[str, Optional[Tensor]]]],
@@ -238,10 +237,27 @@ class SequenceGenerator(nn.Module):
             self.min_len <= max_len
         ), "min_len cannot be larger than max_len, please adjust these!"
 
-        # import pdb
-        # pdb.set_trace()
+
         # compute the encoder output for each beam  forward_encoder函数就在本脚本中
         encoder_outs = self.model.forward_encoder(net_input)
+        import pdb
+        pdb.set_trace()
+        condition_prior = encoder_outs[0]['encoder_out'][0].squeeze()
+
+        z_prior, prior_mu, prior_logvar = self.model.models[0].sample_code_prior(condition_prior)
+        final_info = torch.cat([z_prior, condition_prior], dim=1)
+
+        batch_size = src_tokens.size()[0]
+
+        # 需要修改训练时候的代码，改成每一个字都加上sample小量
+        # 而不是只取最后一个字，expand后添加
+
+        seq_len = encoder_outs['encoder_out'][0].size(0)
+        encoder_embed_dim = encoder_outs['encoder_out'][0].size(-1)
+        decoder_input = self.model.models[0].init_decoder(final_info).unsqueeze(0).expand(seq_len, batch_size, encoder_embed_dim)
+
+        encoder_outs['encoder_out'][0] = encoder_outs['encoder_out'][0] + decoder_input
+
 
         # placeholder of indices for bsz * beam_size to hold tokens and accumulative scores
         new_order = torch.arange(bsz).view(-1, 1).repeat(1, beam_size).view(-1)

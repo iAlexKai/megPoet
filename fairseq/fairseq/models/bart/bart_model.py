@@ -61,6 +61,8 @@ class Variation(nn.Module):
             m.bias.data.fill_(0)
 
     def forward(self, context):
+        # import pdb
+        # pdb.set_trace()
         batch_size, _ = context.size()  # prior: (batch, 4 * hidden)
         context = self.fc(context)
         mu = self.context_to_mu(context)
@@ -158,6 +160,8 @@ class BARTModel(TransformerModel):
             token_embeddings=token_embeddings,
             return_all_hiddens=return_all_hiddens
         )
+        # import pdb
+        # pdb.set_trace()
         condition_prior = encoder_out['encoder_out'][0][-1]
         condition_post = torch.cat([condition_prior, target_out['encoder_out'][0][-1]], dim=1)
 

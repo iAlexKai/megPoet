@@ -424,7 +424,8 @@ def cli_main(
 ) -> None:
 
     os.environ['MKL_THREADING_LAYER'] = 'GNU'
-
+    # import pdb
+    # pdb.set_trace()
     parser = options.get_training_parser()
     args = options.parse_args_and_arch(parser, modify_parser=modify_parser)
 

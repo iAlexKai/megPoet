@@ -5,7 +5,7 @@
       <paths name="920">
         <serverdata>
           <mappings>
-            <mapping deploy="/home/myk/megPoet" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/home/myk/TransPoet_c" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>

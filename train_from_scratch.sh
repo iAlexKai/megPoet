@@ -8,8 +8,8 @@ WARMUP_UPDATES=10
 LR=1e-4
 MAX_TOKENS=2000
 BATCH_SIZE=80
-UPDATE_FREQ=1
-EPOCHS=15
+UPDATE_FREQ=4
+EPOCHS=20
 
 tensorboard_path=tensorboard/$TASK/$TIME
 
@@ -20,7 +20,7 @@ CUDA_VISIBLE_DEVICES=0 fairseq-train data-bin/$TASK \
     --tensorboard-logdir $tensorboard_path \
     --max-epoch $EPOCHS \
     --batch-size $BATCH_SIZE \
-    --save-interval 1 \
+    --save-interval 2 \
     --max-tokens $MAX_TOKENS \
     --task translation \
     --source-lang source --target-lang target \
@@ -40,7 +40,7 @@ CUDA_VISIBLE_DEVICES=0 fairseq-train data-bin/$TASK \
     --fp16 --update-freq $UPDATE_FREQ \
     --skip-invalid-size-inputs-valid-test \
     --find-unused-parameters \
-    --z-size 256 \
+    --z-size 64 \
     --init-w 0.02;
 #    --restore-file $BART_PATH \
 

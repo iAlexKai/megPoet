@@ -452,8 +452,7 @@ class FairseqTask(object):
     def inference_step(
         self, generator, models, sample, prefix_tokens=None, constraints=None
     ):
-        # import pdb
-        # pdb.set_trace()
+
         with torch.no_grad():
             return generator.generate(
                 models, sample, prefix_tokens=prefix_tokens, constraints=constraints
