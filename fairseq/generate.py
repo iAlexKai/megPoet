@@ -36,7 +36,7 @@ if epoch.startswith('_'):
     epoch = epoch[1:]
 
 # with open('../data_process/poet/test.source') as src, open('../output/poet/test_{}_{}.hypo'.format(cur_time, epoch), 'w') as fout:
-with open('../data_process/poet/test.source-inter') as src, open('../output/poet/test_{}_{}.hypo'.format(cur_time, epoch), 'w') as fout:
+with open('../data_process/poet/test.source') as src, open('../output/poet/test_{}_{}.hypo'.format(cur_time, epoch), 'w') as fout:
     for sline in src:
 
         cur_input = sline.strip().split(' ')

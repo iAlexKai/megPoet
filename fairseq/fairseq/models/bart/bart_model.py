@@ -160,8 +160,8 @@ class BARTModel(TransformerModel):
             token_embeddings=token_embeddings,
             return_all_hiddens=return_all_hiddens
         )
-        # import pdb
-        # pdb.set_trace()
+        import pdb
+        pdb.set_trace()
         condition_prior = encoder_out['encoder_out'][0][-1]
         condition_post = torch.cat([condition_prior, target_out['encoder_out'][0][-1]], dim=1)
 
